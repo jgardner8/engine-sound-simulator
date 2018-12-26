@@ -13,7 +13,13 @@ class Engine:
 
         strokes: number of strokes in full engine cycle, must be 2 or 4
         cylinders: number of cylinders in engine
-        timing: array where each element is the number of strokes before the next cylinder fires
+        timing: array where each element is the number of strokes that cylinder should wait before its
+          first fire. Typically first element is 0 so the first cylinder fires right away.
+          e.g. Parallel twin 4 stroke timing=[0, 2]
+          e.g. 90 deg V-twin 4 stroke timing=[0, 1]
+          e.g. Parallel twin 2 stroke timing=[0, 1]
+          e.g. Inline four 4 stroke timing=[0, 1, 2, 3]
+          e.g. Inline six 4 stroke timing=[0, 4/6, 8/6, 12/6, 16/6, 20/6]
         fire_snd: sound engine should make when a cylinder fires
         between_fire_snd: sound engine should make between cylinders firing
         '''
@@ -53,16 +59,19 @@ class Engine:
         between_fire_duration = sec_between_fires / self.strokes * (self.strokes-1) # assumed to be when exhaust valve is closed
 
         # Take slice of audio buffers based on the duration of sound required
-        num_fire_samples = int(fire_duration * cfg.sample_rate)
-        fire_snd = self.fire_snd[:num_fire_samples]
-        num_between_fire_samples = int(between_fire_duration * cfg.sample_rate)
-        between_fire_snd = self.between_fire_snd[:num_between_fire_samples]
+        fire_snd = audio.slice_buffer(self.fire_snd, fire_duration)
+        between_fire_snd = audio.slice_buffer(self.between_fire_snd, between_fire_duration)
 
         # Repeat pattern to fill requested duration
         num_loops = int(duration / sec_between_fires)
-        buf = audio.concat_buffers([
-            fire_snd,
-            between_fire_snd,
-        ] * num_loops)
+        initial_delays = [stroke_delay / strokes_per_min * 60 for stroke_delay in self.timing]
 
-        return buf
+        bufs = []
+        for cylinder in range(0, self.cylinders):
+            running_snd = [fire_snd, between_fire_snd] * num_loops
+            initial_delay_snd = audio.slice_buffer(self.between_fire_snd, initial_delays[cylinder])
+            buf = audio.concat_buffers([initial_delay_snd] + running_snd)
+            buf = audio.slice_buffer(buf, duration) # make them all the same length even though some started later
+            bufs.append(buf)
+
+        return audio.overlay_buffers(bufs)
