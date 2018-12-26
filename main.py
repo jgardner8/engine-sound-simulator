@@ -1,34 +1,10 @@
-import numpy as np
-import simpleaudio as sa
+import synth
+import audio
 
-sample_rate = 44100
-max_16bit = 32767
+fire_snd = synth.sine_wave_note(200, 0.05)
+between_fire_snd = synth.silence(0.05)
 
-def sine_wave_note(frequency, duration):
-    '''
-    Creates audio buffer representing a sine-wave
-    frequency: Hz
-    duration: seconds
-    '''
-    elements = int(duration * sample_rate)
-    timesteps = np.linspace(start=0, stop=duration, num=elements, endpoint=False)
-    return np.sin(frequency * timesteps * 2 * np.pi)
+buf = audio.concat_notes([fire_snd, between_fire_snd, fire_snd, between_fire_snd, fire_snd])
+audio.normalize_volume(buf)
 
-def concat_notes(notes):
-    return np.hstack(notes)
-
-def normalize_volume(buf):
-    '''Makes the loudest sound in the buffer use the max_16bit volume. No clipping'''
-    buf *= max_16bit / np.max(np.abs(buf))
-
-def play(buf):
-    return sa.play_buffer(buf.astype(np.int16), num_channels=1, bytes_per_sample=2, sample_rate=sample_rate)
-
-a_note = sine_wave_note(440, 0.25)
-csharp_note = sine_wave_note(440 * 2 ** (4 / 12), 0.25)
-e_note = sine_wave_note(440 * 2 ** (7 / 12), 0.25)
-
-buf = concat_notes([a_note, csharp_note, e_note])
-normalize_volume(buf)
-
-play(buf).wait_done()
+audio.play(buf).wait_done()
