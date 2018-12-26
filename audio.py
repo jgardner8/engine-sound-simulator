@@ -5,8 +5,8 @@ import cfg
 import numpy as np
 import simpleaudio as sa
 
-def concat_notes(notes):
-    return np.hstack(notes)
+def concat_buffers(bufs):
+    return np.hstack(bufs)
 
 def normalize_volume(buf, loudest_sample=None):
     '''Makes the loudest sample in the buffer use the max_16bit volume. No clipping'''

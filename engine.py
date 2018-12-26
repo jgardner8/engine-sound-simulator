@@ -20,6 +20,7 @@ class Engine:
         self.rpm = 1000
 
         assert strokes in (2, 4), 'strokes not in (2, 4), see docstring'
+        self.strokes = strokes
 
         assert cylinders > 0, 'cylinders <= 0'
         self.cylinders = cylinders
@@ -44,12 +45,24 @@ class Engine:
 
     def gen_audio(self, duration):
         '''Generate an audio buffer representing the engine running for `duration`'''
-        buf = audio.concat_notes([
-            self.fire_snd,
-            self.between_fire_snd,
-            self.fire_snd,
-            self.between_fire_snd,
-            self.fire_snd
-        ])
+        # Calculate durations of fire and between fire events
+        strokes_per_min = self.rpm * 2 # revolution of crankshaft is 2 strokes
+        fires_per_min = strokes_per_min / self.strokes
+        sec_between_fires = 60 / fires_per_min
+        fire_duration = sec_between_fires / self.strokes # noise is assumed to be when exhaust valve is open
+        between_fire_duration = sec_between_fires / self.strokes * (self.strokes-1) # assumed to be when exhaust valve is closed
+
+        # Take slice of audio buffers based on the duration of sound required
+        num_fire_samples = int(fire_duration * cfg.sample_rate)
+        fire_snd = self.fire_snd[:num_fire_samples]
+        num_between_fire_samples = int(between_fire_duration * cfg.sample_rate)
+        between_fire_snd = self.between_fire_snd[:num_between_fire_samples]
+
+        # Repeat pattern to fill requested duration
+        num_loops = int(duration / sec_between_fires)
+        buf = audio.concat_buffers([
+            fire_snd,
+            between_fire_snd,
+        ] * num_loops)
 
         return buf
