@@ -2,6 +2,7 @@
 
 import cfg
 
+import math
 import numpy as np
 import simpleaudio as sa
 
@@ -27,7 +28,7 @@ def normalize_volume(buf, loudest_sample=None):
     buf *= cfg.max_16bit / (loudest_sample or find_loudest_sample(buf))
 
 def exponential_volume_dropoff(buf, duration, base):
-    num_samples = int(duration * cfg.sample_rate)
+    num_samples = math.ceil(duration * cfg.sample_rate)
     zeros_required = len(buf) - num_samples
 
     dropoff_curve = concat_buffers([
@@ -42,7 +43,7 @@ def find_loudest_sample(buf):
 
 def slice_buffer(buf, duration):
     '''Take slice of audio buffers based on the duration of sound required'''
-    num_samples = int(duration * cfg.sample_rate)
+    num_samples = math.ceil(duration * cfg.sample_rate)
     return buf[:num_samples]
 
 def play(buf):

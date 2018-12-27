@@ -3,6 +3,7 @@
 import cfg
 import audio
 
+import math
 import numpy as np
 
 class Engine:
@@ -36,10 +37,9 @@ class Engine:
         assert type(fire_snd) == np.ndarray and \
                type(between_fire_snd) == np.ndarray, \
             'Sounds should be passed in as numpy.ndarray buffers'
-
-        assert len(fire_snd) >= cfg.sample_rate * 0.1 and \
-               len(between_fire_snd) >= cfg.sample_rate * 0.1, \
-            'Ensure all audio buffers contain at least 0.1 seconds of data, see docstring'
+        assert len(fire_snd) >= cfg.sample_rate * 1 and \
+               len(between_fire_snd) >= cfg.sample_rate * 1, \
+            'Ensure all audio buffers contain at least 1 second of data, see docstring'
         self.fire_snd = fire_snd
         self.between_fire_snd = between_fire_snd
 
@@ -57,7 +57,7 @@ class Engine:
         between_fire_snd = audio.slice_buffer(self.between_fire_snd, between_fire_duration)
 
         # Repeat pattern to fill requested duration
-        num_loops = int(duration / sec_between_fires)
+        num_loops = math.ceil(duration / sec_between_fires)
         initial_delays = [stroke_delay / strokes_per_min * 60 for stroke_delay in self.timing]
 
         bufs = []
@@ -65,6 +65,7 @@ class Engine:
             running_snd = [fire_snd, between_fire_snd] * num_loops
             initial_delay_snd = audio.slice_buffer(self.between_fire_snd, initial_delays[cylinder])
             buf = audio.concat_buffers([initial_delay_snd] + running_snd)
+            assert len(buf) >= duration * cfg.sample_rate, 'buf too short for time requirement. Likely need longer audio buffers for source data'
             buf = audio.slice_buffer(buf, duration) # make them all the same length even though some started later
             bufs.append(buf)
 
