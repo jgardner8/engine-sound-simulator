@@ -4,9 +4,9 @@ from engine import Engine
 
 import time
 
-fire_snd = synth.sine_wave_note(200, 0.1)
+fire_snd = synth.sine_wave_note(frequency=180, duration=0.1)
 audio.normalize_volume(fire_snd)
-audio.exponential_volume_dropoff(fire_snd, 0.05, 3)
+audio.exponential_volume_dropoff(fire_snd, duration=0.05, base=3)
 audio.play(fire_snd).wait_done()
 
 thumper = Engine(
@@ -33,6 +33,14 @@ v_twin = Engine(
     between_fire_snd=synth.silence(0.15)
 )
 
+inline_four = Engine(
+    strokes=4,
+    cylinders=4,
+    timing=[0, 1, 2, 3],
+    fire_snd=fire_snd,
+    between_fire_snd=synth.silence(0.15)
+)
+
 buf = thumper.gen_audio(duration=3)
 audio.play(buf).wait_done()
 
@@ -44,4 +52,9 @@ audio.play(buf).wait_done()
 time.sleep(0.1)
 
 buf = v_twin.gen_audio(duration=3)
+audio.play(buf).wait_done()
+
+time.sleep(0.1)
+
+buf = inline_four.gen_audio(duration=3)
 audio.play(buf).wait_done()
