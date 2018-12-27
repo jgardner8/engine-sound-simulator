@@ -37,15 +37,9 @@ class Engine:
                type(between_fire_snd) == np.ndarray, \
             'Sounds should be passed in as numpy.ndarray buffers'
 
-        assert len(fire_snd) >= cfg.sample_rate / 4 and \
-               len(between_fire_snd) >= cfg.sample_rate / 4, \
-            'Ensure all audio buffers contain at least 0.25 seconds of data, see docstring'
-        loudest_sample = max([
-            audio.find_loudest_sample(fire_snd),
-            audio.find_loudest_sample(between_fire_snd)
-        ])
-        audio.normalize_volume(fire_snd, loudest_sample)
-        audio.normalize_volume(between_fire_snd, loudest_sample)
+        assert len(fire_snd) >= cfg.sample_rate * 0.1 and \
+               len(between_fire_snd) >= cfg.sample_rate * 0.1, \
+            'Ensure all audio buffers contain at least 0.1 seconds of data, see docstring'
         self.fire_snd = fire_snd
         self.between_fire_snd = between_fire_snd
 

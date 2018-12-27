@@ -26,6 +26,17 @@ def normalize_volume(buf, loudest_sample=None):
     '''Makes the loudest sample in the buffer use the max_16bit volume. No clipping'''
     buf *= cfg.max_16bit / (loudest_sample or find_loudest_sample(buf))
 
+def exponential_volume_dropoff(buf, duration, base):
+    num_samples = int(duration * cfg.sample_rate)
+    zeros_required = len(buf) - num_samples
+
+    dropoff_curve = concat_buffers([
+        base / np.logspace(1, 10, num=num_samples, base=base),
+        np.zeros(zeros_required)
+    ])
+
+    buf *= dropoff_curve
+
 def find_loudest_sample(buf):
     return np.max(np.abs(buf))
 
