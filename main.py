@@ -1,29 +1,13 @@
 import synth
-import audio
+import audio_tools
+from audio_device import AudioDevice
 from engine import Engine
 
-import time
+import signal
 
 fire_snd = synth.sine_wave_note(frequency=180, duration=1)
-audio.normalize_volume(fire_snd)
-audio.exponential_volume_dropoff(fire_snd, duration=0.05, base=3)
-audio.play(fire_snd).wait_done()
-
-thumper = Engine(
-    strokes=4,
-    cylinders=1,
-    timing=[0],
-    fire_snd=fire_snd,
-    between_fire_snd=synth.silence(1)
-)
-
-parallel_twin = Engine(
-    strokes=4,
-    cylinders=2,
-    timing=[0, 2],
-    fire_snd=fire_snd,
-    between_fire_snd=synth.silence(1)
-)
+audio_tools.normalize_volume(fire_snd)
+audio_tools.exponential_volume_dropoff(fire_snd, duration=0.05, base=3)
 
 v_twin = Engine(
     strokes=4,
@@ -33,29 +17,20 @@ v_twin = Engine(
     between_fire_snd=synth.silence(1)
 )
 
-inline_four = Engine(
-    strokes=4,
-    cylinders=4,
-    timing=[0, 1, 2, 3],
-    fire_snd=fire_snd,
-    between_fire_snd=synth.silence(1)
-)
+######
 
-print('thumper')
-buf = thumper.gen_audio(duration=3)
-audio.play(buf).wait_done()
+def on_sigint(signal, frame):
+    try:
+        stream.stop_stream()
+        stream.close()
+        audio_device.close()
+    except NameError:
+        pass # caught race condition
 
-time.sleep(0.1)
-print('parallel_twin')
-buf = parallel_twin.gen_audio(duration=3)
-audio.play(buf).wait_done()
+signal.signal(signal.SIGINT, on_sigint)
 
-time.sleep(0.1)
-print('v_twin')
-buf = v_twin.gen_audio(duration=3)
-audio.play(buf).wait_done()
+audio_device = AudioDevice()
+stream = audio_device.play_stream(v_twin.gen_audio)
 
-time.sleep(0.1)
-print('inline_four')
-buf = inline_four.gen_audio(duration=3)
-audio.play(buf).wait_done()
+print('\nPlaying audio...\nPress Ctrl+C to exit')
+signal.pause()

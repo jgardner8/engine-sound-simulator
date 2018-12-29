@@ -1,7 +1,6 @@
 '''Basic simulation of engine for purposes of audio generation'''
-
 import cfg
-import audio
+import audio_tools
 
 import math
 import numpy as np
@@ -26,6 +25,11 @@ class Engine:
         '''
         self.rpm = 1000
 
+        # Audio library will request a specific number of samples, but we can't simulate partial engine
+        # revolutions, so we buffer whatever we have left over. We start with some zero samples to stop
+        # the pop as the audio device opens.
+        self.audio_buffer = np.zeros([256])
+
         assert strokes in (2, 4), 'strokes not in (2, 4), see docstring'
         self.strokes = strokes
 
@@ -43,30 +47,48 @@ class Engine:
         self.fire_snd = fire_snd
         self.between_fire_snd = between_fire_snd
 
-    def gen_audio(self, duration):
-        '''Generate an audio buffer representing the engine running for `duration`'''
+    def _gen_audio_one_engine_cycle(self):
         # Calculate durations of fire and between fire events
         strokes_per_min = self.rpm * 2 # revolution of crankshaft is 2 strokes
         fires_per_min = strokes_per_min / self.strokes
         sec_between_fires = 60 / fires_per_min
-        fire_duration = sec_between_fires / self.strokes # noise is assumed to be when exhaust valve is open
-        between_fire_duration = sec_between_fires / self.strokes * (self.strokes-1) # assumed to be when exhaust valve is closed
+        fire_duration = sec_between_fires / self.strokes # when exhaust valve is open
+        between_fire_duration = sec_between_fires / self.strokes * (self.strokes-1) # when exhaust valve is closed
 
-        # Take slice of audio buffers based on the duration of sound required
-        fire_snd = audio.slice_buffer(self.fire_snd, fire_duration)
-        between_fire_snd = audio.slice_buffer(self.between_fire_snd, between_fire_duration)
+        # Take slice of input audio buffers based on the duration of sound required
+        fire_snd = audio_tools.slice(self.fire_snd, fire_duration)
+        between_fire_snd = audio_tools.slice(self.between_fire_snd, between_fire_duration)
 
-        # Repeat pattern to fill requested duration
-        num_loops = math.ceil(duration / sec_between_fires)
-        initial_delays = [stroke_delay / strokes_per_min * 60 for stroke_delay in self.timing]
-
+        # Generate audio buffers for all of the cylinders individually
         bufs = []
         for cylinder in range(0, self.cylinders):
-            running_snd = [fire_snd, between_fire_snd] * num_loops
-            initial_delay_snd = audio.slice_buffer(self.between_fire_snd, initial_delays[cylinder])
-            buf = audio.concat_buffers([initial_delay_snd] + running_snd)
-            assert len(buf) >= duration * cfg.sample_rate, 'buf too short for time requirement. Likely need longer audio buffers for source data'
-            buf = audio.slice_buffer(buf, duration) # make them all the same length even though some started later
-            bufs.append(buf)
+            initial_delay = self.timing[cylinder] / strokes_per_min * 60
+            initial_delay_snd = audio_tools.slice(self.between_fire_snd, initial_delay)
+            after_fire_duration = between_fire_duration - initial_delay
+            after_fire_snd = audio_tools.slice(self.between_fire_snd, after_fire_duration)
+            bufs.append(audio_tools.concat([initial_delay_snd, fire_snd, after_fire_snd]))
 
-        return audio.overlay_buffers(bufs)
+        engine_snd = audio_tools.overlay(bufs)
+        return audio_tools.in_playback_format(engine_snd)
+
+    def gen_audio(self, num_samples):
+        '''Return `num_samples` audio samples representing the engine running'''
+        # If we already have enough samples buffered, just return those
+        if num_samples < len(self.audio_buffer):
+            buf = self.audio_buffer[:num_samples]
+            self.audio_buffer = self.audio_buffer[num_samples:]
+            return buf
+
+        # Generate new samples. If we still don't have enough, loop what we generated
+        engine_snd = self._gen_audio_one_engine_cycle()
+        while len(self.audio_buffer) + len(engine_snd) < num_samples:
+            engine_snd = audio_tools.concat([engine_snd, engine_snd]) # this is unlikely to run more than once
+
+        # Take from the buffer first, and use new samples to make up the difference
+        # Leftover new samples become the audio buffer for the next run
+        num_new_samples = num_samples - len(self.audio_buffer)
+        buf = audio_tools.concat([self.audio_buffer, engine_snd[:num_new_samples]])
+        assert len(buf) == num_samples, (f'${num_samples} requested, but ${len(buf)} samples provided, from ' +
+            f'${len(self.audio_buffer)} buffered samples and ${num_new_samples} new samples')
+        self.audio_buffer = engine_snd[num_new_samples:]
+        return buf

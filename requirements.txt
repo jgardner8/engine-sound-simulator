@@ -1,2 +1,2 @@
 numpy==1.15.4
-simpleaudio==1.0.2
+pyaudio==0.2.11
