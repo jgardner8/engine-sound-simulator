@@ -102,7 +102,7 @@ class Engine:
         '''Applies throttle, increasing or decreasing the engine's RPM based on friction, power etc'''
         if fraction == 1.0:
             if self._rpm < self.limiter_rpm:
-                self._rpm += 250
+                self._rpm += (1000 / self.strokes)
             else:
                 fraction = 0.0 # cut spark
 
