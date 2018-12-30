@@ -4,9 +4,9 @@ import controls
 from audio_device import AudioDevice
 from engine import Engine
 
-fire_snd = synth.sine_wave_note(frequency=180, duration=1)
+fire_snd = synth.sine_wave_note(frequency=160, duration=1)
 audio_tools.normalize_volume(fire_snd)
-audio_tools.exponential_volume_dropoff(fire_snd, duration=0.05, base=3)
+audio_tools.exponential_volume_dropoff(fire_snd, duration=0.06, base=5)
 
 v_twin = Engine(
     idle_rpm=1000,
