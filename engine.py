@@ -6,11 +6,13 @@ import math
 import numpy as np
 
 class Engine:
-    def __init__(self, strokes, cylinders, timing, fire_snd, between_fire_snd):
+    def __init__(self, idle_rpm, limiter_rpm, strokes, cylinders, timing, fire_snd, between_fire_snd):
         '''
         Note: all sounds used will be concatenated to suit engine run speed.
         Make sure there's excess audio data available in the buffer.
 
+        idle_rpm: engine speed at idle
+        limiter_rpm: engine speed at rev limiter
         strokes: number of strokes in full engine cycle, must be 2 or 4
         cylinders: number of cylinders in engine
         timing: array where each element is the number of strokes that cylinder should wait before its
@@ -23,12 +25,14 @@ class Engine:
         fire_snd: sound engine should make when a cylinder fires
         between_fire_snd: sound engine should make between cylinders firing
         '''
-        self.rpm = 1000
-
         # Audio library will request a specific number of samples, but we can't simulate partial engine
         # revolutions, so we buffer whatever we have left over. We start with some zero samples to stop
         # the pop as the audio device opens.
-        self.audio_buffer = np.zeros([256])
+        self._audio_buffer = np.zeros([256])
+
+        self._rpm = idle_rpm
+        self.idle_rpm = idle_rpm
+        self.limiter_rpm = limiter_rpm
 
         assert strokes in (2, 4), 'strokes not in (2, 4), see docstring'
         self.strokes = strokes
@@ -49,15 +53,12 @@ class Engine:
 
     def _gen_audio_one_engine_cycle(self):
         # Calculate durations of fire and between fire events
-        strokes_per_min = self.rpm * 2 # revolution of crankshaft is 2 strokes
+        strokes_per_min = self._rpm * 2 # revolution of crankshaft is 2 strokes
         fires_per_min = strokes_per_min / self.strokes
         sec_between_fires = 60 / fires_per_min
         fire_duration = sec_between_fires / self.strokes # when exhaust valve is open
         between_fire_duration = sec_between_fires / self.strokes * (self.strokes-1) # when exhaust valve is closed
-
-        # Take slice of input audio buffers based on the duration of sound required
         fire_snd = audio_tools.slice(self.fire_snd, fire_duration)
-        between_fire_snd = audio_tools.slice(self.between_fire_snd, between_fire_duration)
 
         # Generate audio buffers for all of the cylinders individually
         bufs = []
@@ -68,27 +69,47 @@ class Engine:
             after_fire_snd = audio_tools.slice(self.between_fire_snd, after_fire_duration)
             bufs.append(audio_tools.concat([initial_delay_snd, fire_snd, after_fire_snd]))
 
+        # Make sure all buffers are the same length (may be off by 1 because of rounding issues)
+        max_buf_len = len(max(bufs, key=len))
+        bufs = [audio_tools.pad_with_zeros(buf, max_buf_len-len(buf)) for buf in bufs]
+
+        # Combine all the cylinder sounds
         engine_snd = audio_tools.overlay(bufs)
         return audio_tools.in_playback_format(engine_snd)
 
     def gen_audio(self, num_samples):
         '''Return `num_samples` audio samples representing the engine running'''
         # If we already have enough samples buffered, just return those
-        if num_samples < len(self.audio_buffer):
-            buf = self.audio_buffer[:num_samples]
-            self.audio_buffer = self.audio_buffer[num_samples:]
+        if num_samples < len(self._audio_buffer):
+            buf = self._audio_buffer[:num_samples]
+            self._audio_buffer = self._audio_buffer[num_samples:]
             return buf
 
         # Generate new samples. If we still don't have enough, loop what we generated
         engine_snd = self._gen_audio_one_engine_cycle()
-        while len(self.audio_buffer) + len(engine_snd) < num_samples:
+        while len(self._audio_buffer) + len(engine_snd) < num_samples:
             engine_snd = audio_tools.concat([engine_snd, engine_snd]) # this is unlikely to run more than once
 
         # Take from the buffer first, and use new samples to make up the difference
         # Leftover new samples become the audio buffer for the next run
-        num_new_samples = num_samples - len(self.audio_buffer)
-        buf = audio_tools.concat([self.audio_buffer, engine_snd[:num_new_samples]])
+        num_new_samples = num_samples - len(self._audio_buffer)
+        buf = audio_tools.concat([self._audio_buffer, engine_snd[:num_new_samples]])
         assert len(buf) == num_samples, (f'${num_samples} requested, but ${len(buf)} samples provided, from ' +
-            f'${len(self.audio_buffer)} buffered samples and ${num_new_samples} new samples')
-        self.audio_buffer = engine_snd[num_new_samples:]
+            f'${len(self._audio_buffer)} buffered samples and ${num_new_samples} new samples')
+        self._audio_buffer = engine_snd[num_new_samples:]
         return buf
+
+    def throttle(self, fraction):
+        '''Applies throttle, increasing or decreasing the engine's RPM based on friction, power etc'''
+        if fraction == 1.0:
+            if self._rpm < self.limiter_rpm:
+                self._rpm += 250
+            else:
+                fraction = 0.0 # cut spark
+
+        if fraction == 0.0:
+            if self._rpm > self.idle_rpm:
+                self._rpm -= min(125, self._rpm - self.idle_rpm)
+
+        print("\033[A                             \033[A") # clear previous line in console
+        print('RPM', self._rpm)

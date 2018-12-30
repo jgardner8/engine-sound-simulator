@@ -1,2 +1,4 @@
 numpy==1.15.4
 pyaudio==0.2.11
+inputs==0.5
+
