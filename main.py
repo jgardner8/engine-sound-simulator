@@ -10,7 +10,7 @@ audio_tools.exponential_volume_dropoff(fire_snd, duration=0.05, base=3)
 
 v_twin = Engine(
     idle_rpm=1000,
-    limiter_rpm=10000,
+    limiter_rpm=10500,
     strokes=4,
     cylinders=2,
     timing=[0, 1],

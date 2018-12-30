@@ -21,7 +21,6 @@ class Engine:
           e.g. 90 deg V-twin 4 stroke timing=[0, 1]
           e.g. Parallel twin 2 stroke timing=[0, 1]
           e.g. Inline four 4 stroke timing=[0, 1, 2, 3]
-          e.g. Inline six 4 stroke timing=[0, 4/6, 8/6, 12/6, 16/6, 20/6]
         fire_snd: sound engine should make when a cylinder fires
         between_fire_snd: sound engine should make between cylinders firing
         '''
@@ -54,20 +53,20 @@ class Engine:
     def _gen_audio_one_engine_cycle(self):
         # Calculate durations of fire and between fire events
         strokes_per_min = self._rpm * 2 # revolution of crankshaft is 2 strokes
-        fires_per_min = strokes_per_min / self.strokes
-        sec_between_fires = 60 / fires_per_min
+        strokes_per_sec = strokes_per_min / 60
+        sec_between_fires = self.strokes / strokes_per_sec
         fire_duration = sec_between_fires / self.strokes # when exhaust valve is open
         between_fire_duration = sec_between_fires / self.strokes * (self.strokes-1) # when exhaust valve is closed
-        fire_snd = audio_tools.slice(self.fire_snd, fire_duration)
 
         # Generate audio buffers for all of the cylinders individually
         bufs = []
+        fire_snd = audio_tools.slice(self.fire_snd, fire_duration)
         for cylinder in range(0, self.cylinders):
-            initial_delay = self.timing[cylinder] / strokes_per_min * 60
-            initial_delay_snd = audio_tools.slice(self.between_fire_snd, initial_delay)
-            after_fire_duration = between_fire_duration - initial_delay
+            before_fire_duration = self.timing[cylinder] / strokes_per_sec
+            before_fire_snd = audio_tools.slice(self.between_fire_snd, before_fire_duration)
+            after_fire_duration = between_fire_duration - before_fire_duration
             after_fire_snd = audio_tools.slice(self.between_fire_snd, after_fire_duration)
-            bufs.append(audio_tools.concat([initial_delay_snd, fire_snd, after_fire_snd]))
+            bufs.append(audio_tools.concat([before_fire_snd, fire_snd, after_fire_snd]))
 
         # Make sure all buffers are the same length (may be off by 1 because of rounding issues)
         max_buf_len = len(max(bufs, key=len))

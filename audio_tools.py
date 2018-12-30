@@ -46,6 +46,7 @@ def find_loudest_sample(buf):
 
 def slice(buf, duration):
     '''Take slice of audio buffers based on the duration of sound required'''
+    assert duration >= 0, f'duration of {duration} is < 0'
     num_samples = math.ceil(duration * cfg.sample_rate)
     return buf[:num_samples]
 
