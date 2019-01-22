@@ -15,12 +15,14 @@ class Engine:
         limiter_rpm: engine speed at rev limiter
         strokes: number of strokes in full engine cycle, must be 2 or 4
         cylinders: number of cylinders in engine
-        timing: array where each element is the number of strokes that cylinder should wait before its
-          first fire. Typically first element is 0 so the first cylinder fires right away.
-          e.g. Parallel twin 4 stroke timing=[0, 2]
-          e.g. 90 deg V-twin 4 stroke timing=[0, 1]
-          e.g. Parallel twin 2 stroke timing=[0, 1]
-          e.g. Inline four 4 stroke timing=[0, 1, 2, 3]
+        timing: array where each element is the number of crankshaft degrees that cylinder should wait
+          before its first fire. Typically first element is 0 so the first cylinder fires right away.
+          e.g. Parallel twin 4 stroke timing=[0, 360]
+          e.g. Parallel twin 2 stroke timing=[0, 180]
+          e.g. 90 deg V-twin 4 stroke timing=[0, 180]
+          e.g. 60 deg V-twin 4 stroke timing=[0, 120]
+          e.g. Inline four 4 stroke timing=[0, 180, 360, 540]
+          e.g. V4 or crossplane inline four 4 stroke timing=[0, 180, 450, 630]
         fire_snd: sound engine should make when a cylinder fires
         between_fire_snd: sound engine should make between cylinders firing
         '''
@@ -62,7 +64,7 @@ class Engine:
         bufs = []
         fire_snd = audio_tools.slice(self.fire_snd, fire_duration)
         for cylinder in range(0, self.cylinders):
-            before_fire_duration = self.timing[cylinder] / strokes_per_sec
+            before_fire_duration = (self.timing[cylinder] / 180) / strokes_per_sec # 180 degrees crankshaft rotation per stroke
             before_fire_snd = audio_tools.slice(self.between_fire_snd, before_fire_duration)
             after_fire_duration = between_fire_duration - before_fire_duration
             after_fire_snd = audio_tools.slice(self.between_fire_snd, after_fire_duration)
