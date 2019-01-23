@@ -5,6 +5,16 @@ import audio_tools
 import math
 import numpy as np
 
+def _convert_timing_format(timing):
+    # Convert timing format from standard format to our internal format.
+    # Standard format: each element is the number of crankshaft degrees that cylinder should wait
+    #   to fire after the _previous_ cylinder fires
+    # Internal format: each element is the number of crankshaft degrees that cylinder should wait
+    #   to fire after the _first_ cylinder fires
+    timing[0] = 0 # we automatically wait for crank to finish rotation before coming back to first cylinder
+    for i in range(1, len(timing)):
+        timing[i] += timing[i-1]
+
 class Engine:
     def __init__(self, idle_rpm, limiter_rpm, strokes, cylinders, timing, fire_snd, between_fire_snd):
         '''
@@ -16,13 +26,7 @@ class Engine:
         strokes: number of strokes in full engine cycle, must be 2 or 4
         cylinders: number of cylinders in engine
         timing: array where each element is the number of crankshaft degrees that cylinder should wait
-          before its first fire. Typically first element is 0 so the first cylinder fires right away.
-          e.g. Parallel twin 4 stroke timing=[0, 360]
-          e.g. Parallel twin 2 stroke timing=[0, 180]
-          e.g. 90 deg V-twin 4 stroke timing=[0, 180]
-          e.g. 60 deg V-twin 4 stroke timing=[0, 120]
-          e.g. Inline four 4 stroke timing=[0, 180, 360, 540]
-          e.g. V4 or crossplane inline four 4 stroke timing=[0, 180, 450, 630]
+          to fire after the previous cylinder fires. See engine_factory.py for examples
         fire_snd: sound engine should make when a cylinder fires
         between_fire_snd: sound engine should make between cylinders firing
         '''
@@ -40,8 +44,10 @@ class Engine:
 
         assert cylinders > 0, 'cylinders <= 0'
         self.cylinders = cylinders
+
         assert len(timing) == cylinders, 'len(timing) != cylinders, see docstring'
         self.timing = timing
+        _convert_timing_format(self.timing)
 
         assert type(fire_snd) == np.ndarray and \
                type(between_fire_snd) == np.ndarray, \
